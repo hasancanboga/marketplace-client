@@ -417,10 +417,10 @@
         @endif
 
         <div class="max-w-6xl mx-auto sm:px-6 lg:px-8 text-gray-300">
-            <p>Worker is not running</p>
-            <div class="flex">
+            <p>Marketplace Client</p>
+            {{-- <div class="flex">
                 <a href='/work' class="mx-auto"> Start Worker </a>
-            </div>
+            </div> --}}
         </div>
     </div>
 </body>
