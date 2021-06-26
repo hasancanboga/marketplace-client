@@ -16,18 +16,18 @@ class SaveOrderDetails implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $orderId;
+    protected $order;
 
-    public $tries = 5;
+    public $tries = 20;
 
     /**
      * Create a new job instance.
      *
      * @return void
      */
-    public function __construct($orderId)
+    public function __construct(Order $order)
     {
-        $this->orderId = $orderId;
+        $this->order = $order;
     }
 
     /**
@@ -37,16 +37,12 @@ class SaveOrderDetails implements ShouldQueue
      */
     public function handle(OrderClient $orderClient)
     {
-        logger('saving order ' . $this->orderId);
-        $order = $orderClient->fetch($this->orderId);
-
-        $orderClient->store($order);
-
-        UpdateOrderType::dispatch((object) ['id' => $this->orderId]);
+        logger('saving order ' . $this->order->id);
+        $orderClient->fetch($this->order);
     }
 
     public function middleware()
     {
-        return [new RateLimitedWithRedis('save_order_details')];
+        return [new RateLimitedWithRedis('marketplace_client')];
     }
 }

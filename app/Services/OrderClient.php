@@ -2,83 +2,120 @@
 
 namespace App\Services;
 
+use Exception;
 use App\Models\Order;
 use App\Models\Address;
 use App\Models\Product;
 use App\Models\Customer;
 use App\Models\OrderItem;
-use Exception;
+use App\Jobs\UpdateOrderType;
+use App\Jobs\SaveOrderDetails;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Artisan;
 
 class OrderClient
 {
-    public function fetchAll()
-    {
-        $response = Http::get('https://sample-market.despatchcloud.uk/api/orders', [
-            'api_key' => config('services.marketplace.key'),
-            'date' => now(),
-        ]);
+    protected $retried = false;
 
-        if ($response->successful()) {
-            return $response->json()['data'];
+    public function run()
+    {
+        if (Queue::size() >= 50) {
+            return;
+        }
+
+        // $orders = array_slice($this->fetchAll(), 0, 10);
+        $orders = $this->fetchAll();
+        foreach ($orders as $order) {
+            $emptyOrder = $this->createEmptyOrder($order);
+            SaveOrderDetails::dispatch($emptyOrder);
         }
     }
 
-    public function fetch($id)
+    public function fetchAll()
     {
-        $response = Http::get("https://sample-market.despatchcloud.uk/api/orders/{$id}", [
-            'api_key' => config('services.marketplace.key'),
-        ]);
-        
+        $params = ['api_key' => config('services.marketplace.key')];
+
+        if ($latestOrder = Order::latest()->first()) {
+            $params['id'] = $latestOrder->id;
+        } else {
+            $params['date'] = now()->subMinute()->toDateTimeString();
+        }
+
+        $response = Http::get(
+            'https://sample-market.despatchcloud.uk/api/orders',
+            $params
+        );
+
+        if ($response->failed() && !$this->retried) {
+            sleep(10);
+            $this->retried = true;
+            $this->run();
+        }
+
+        return array_reverse($response->json()['data']);
+    }
+
+    public function fetch(Order $order)
+    {
+        $response = Http::get(
+            "https://sample-market.despatchcloud.uk/api/orders/" . $order->id,
+            [
+                'api_key' => config('services.marketplace.key'),
+            ]
+        );
+
         if ($response->failed()) {
             throw new Exception;
         }
 
-        return $this->store($response->json());
+        $order = $this->saveDetails($response->json());
+        UpdateOrderType::dispatch($order);
+        return $order;
     }
 
     public function update(Order $order)
     {
-        $response = Http::post("https://sample-market.despatchcloud.uk/api/orders/" . $order->id, [
-            'api_key' => config('services.marketplace.key'),
-            'type' => 'approved'
-        ]);
+        $response = Http::asForm()->post(
+            "https://sample-market.despatchcloud.uk/api/orders/" . $order->id,
+            [
+                'api_key' => config('services.marketplace.key'),
+                'type' => 'approved'
+            ]
+        );
 
         if ($response->failed()) {
             throw new Exception;
         }
 
-        return $order->setApproved();
+        return $order->approve();
     }
 
-    public function store(array $order)
+    public function saveDetails(array $order)
     {
-        Customer::create(
+        Customer::updateOrCreate(
             $order['customer']
         );
 
-        Address::create(
+        Address::updateOrCreate(
             $order['shipping_address']
         );
 
-        Address::create(
+        Address::updateOrCreate(
             $order['billing_address']
         );
 
         foreach ($order['order_items'] as $orderItem) {
-            Product::create($orderItem['product']);
+            Product::updateOrCreate($orderItem['product']);
         }
 
-        Order::create(
-            collect($order)->filter(function ($item, $key) {
-                return $key !== 'customer'
-                    && $key !== 'billing_address'
-                    && $key !== 'shipping_address'
-                    && $key !== 'order_items';
-            })->toArray()
-        );
+        Order::find($order['id'])->update([
+            'customer_id' => $order['customer_id'],
+            'shipping_address_id' => $order['shipping_address_id'],
+            'billing_address_id' => $order['billing_address_id'],
+        ]);
 
         $orderItems = [];
         foreach ($order['order_items'] as $orderItem) {
@@ -87,5 +124,16 @@ class OrderClient
         }
 
         return Order::find($order['id']);
+    }
+
+    public function createEmptyOrder($order)
+    {
+        return Order::create(
+            collect($order)->filter(function ($item, $key) {
+                return $key !== 'customer_id'
+                    && $key !== 'billing_address_id'
+                    && $key !== 'shipping_address_id';
+            })->toArray()
+        );
     }
 }

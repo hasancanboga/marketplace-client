@@ -17,11 +17,11 @@ class CreateOrdersTable extends Migration
             $table->id();
             $table->string('payment_method');
             $table->string('shipping_method');
-            $table->foreignId('customer_id')->constrained();
+            $table->foreignId('customer_id')->nullable()->constrained();
             $table->integer('company_id');
             $table->string('type');
-            $table->foreignId('billing_address_id')->constrained('addresses');
-            $table->foreignId('shipping_address_id')->constrained('addresses');
+            $table->foreignId('billing_address_id')->nullable()->constrained('addresses');
+            $table->foreignId('shipping_address_id')->nullable()->constrained('addresses');
             $table->string('total');
             $table->timestamps();
         });

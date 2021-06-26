@@ -18,7 +18,7 @@ class Order extends Model
         'order_items',
     ];
 
-    public function setApproved() 
+    public function approve() 
     {
         $this->update(['type' => 'approved']);
         return $this;

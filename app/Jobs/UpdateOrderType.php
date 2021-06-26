@@ -3,13 +3,14 @@
 namespace App\Jobs;
 
 use App\Models\Order;
+use App\Services\OrderClient;
 use Illuminate\Bus\Queueable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
-use App\Services\OrderClient;
+use Illuminate\Queue\Middleware\RateLimitedWithRedis;
 
 class UpdateOrderType implements ShouldQueue
 {
@@ -17,7 +18,7 @@ class UpdateOrderType implements ShouldQueue
 
     protected $order;
     
-    public $tries = 5;
+    public $tries = 20;
 
     /**
      * Create a new job instance.
@@ -37,5 +38,12 @@ class UpdateOrderType implements ShouldQueue
     public function handle(OrderClient $orderClient)
     {
         logger('updating order ' . $this->order->id);
+
+        $orderClient->update($this->order);
+    }
+    
+    public function middleware()
+    {
+        return [new RateLimitedWithRedis('marketplace_client')];
     }
 }

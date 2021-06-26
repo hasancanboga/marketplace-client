@@ -28,11 +28,8 @@ class AppServiceProvider extends ServiceProvider
     {
         Model::preventLazyLoading(!$this->app->isProduction());
 
-        RateLimiter::for('save_order_details', function ($job) {
-            // Limiting this to 14 because this also triggers the UpdateOrderType job
-            // which will make it 28 requests, plus the scheduled GET request makes it 29.
-            // so it respects the 30 rate limit of the marketplace API.
-            return Limit::perMinute(14);
+        RateLimiter::for('marketplace_client', function ($job) {
+            return Limit::perMinute(28);
         });
         
     }
