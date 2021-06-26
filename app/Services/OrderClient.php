@@ -49,10 +49,14 @@ class OrderClient
             $params
         );
 
-        if ($response->failed() && !$this->retried) {
-            sleep(10);
-            $this->retried = true;
-            $this->run();
+        if ($response->failed()) {
+            if (!$this->retried) {
+                sleep(10);
+                $this->retried = true;
+                $this->run();
+            } else {
+                return [];
+            }
         }
 
         return array_reverse($response->json()['data']);
