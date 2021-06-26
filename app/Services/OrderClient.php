@@ -26,8 +26,8 @@ class OrderClient
             return;
         }
 
-        // $orders = array_slice($this->fetchAll(), 0, 10);
         $orders = $this->fetchAll();
+
         foreach ($orders as $order) {
             $emptyOrder = $this->createEmptyOrder($order);
             SaveOrderDetails::dispatch($emptyOrder);
@@ -44,7 +44,7 @@ class OrderClient
             $params['date'] = now()->subMinute()->toDateTimeString();
         }
 
-        $response = Http::get(
+        $response = Http::log()->get(
             'https://sample-market.despatchcloud.uk/api/orders',
             $params
         );
@@ -60,7 +60,7 @@ class OrderClient
 
     public function fetch(Order $order)
     {
-        $response = Http::get(
+        $response = Http::log()->get(
             "https://sample-market.despatchcloud.uk/api/orders/" . $order->id,
             [
                 'api_key' => config('services.marketplace.key'),
@@ -78,7 +78,7 @@ class OrderClient
 
     public function update(Order $order)
     {
-        $response = Http::asForm()->post(
+        $response = Http::log()->asForm()->post(
             "https://sample-market.despatchcloud.uk/api/orders/" . $order->id,
             [
                 'api_key' => config('services.marketplace.key'),
